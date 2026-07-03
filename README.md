@@ -12,6 +12,9 @@ button, so it's reversible). Click the toolbar icon to pick filters:
 - **Reposts** — "Jane Doe reposted this"
 - **Follow spillover** — "Jane Doe follows Acme Corp"
 - **Suggested posts** — "Recommended for you"
+- **News & games** — the "LinkedIn News" / "Today's puzzles" rail widgets
+- **Slop badge** (on by default) — engagement-bait posts stay visible but get
+  a "Likely slop" pill; see below
 
 ## How it works
 
@@ -35,6 +38,32 @@ into a `data-dp-reasons` attribute. The set of enabled filters is written to a
 so toggling a filter in the popup applies instantly, in both directions,
 without re-scanning anything. Settings sync via `chrome.storage.sync`.
 
+## Slop badge
+
+Posts are scored for *slop* — formulaic engagement-farming prose (broetry
+line-stacking, "It's not X, it's Y", emoji-bullet listicles, "Agree?"
+closers). It's an aesthetic judgment about the text, deliberately **not** an
+"AI-generated" claim: a human-written hustle post earns the badge just fine.
+Hover the pill for the itemized offense receipt.
+
+Two tiers, two brains:
+
+1. **Heuristic scorer** (`slop.js`) — free, local, synchronous; runs on every
+   post's commentary. Clear slop gets badged **Likely slop** immediately;
+   clearly fine posts are done.
+2. **LLM judge** (`worker.js`) — posts scoring in the ambiguous middle band
+   are sent to an OpenAI-compatible endpoint (DeepSeek by default) from the
+   background service worker. The judge can mint, upgrade (**Certified
+   slop**), or clear a badge. Verdicts are cached per post, judged at most
+   once, and every failure mode falls back to the heuristic verdict — the
+   feed never waits on the network.
+
+The judge is optional. To enable it, copy `config.local.example.js` to
+`config.local.js` (gitignored) and fill in your API key; without it the
+heuristic tier runs alone and the worker answers every request with a shrug.
+Scoring weights are calibrated against a labeled post set — run
+`node test/slop.test.js`.
+
 ## Install
 
 1. Open `chrome://extensions`
@@ -49,7 +78,8 @@ then refresh linkedin.com.
 - Purely a visual filter — LinkedIn still counts impressions server-side.
 - Header pattern-matching is English-only (promoted-label detection is not).
   Using LinkedIn in another language means the social filters won't match
-  until their patterns are added to `DP_FILTERS` in `filters.js`.
+  until their patterns are added to `DP_FILTERS` in `filters.js`. The slop
+  scorer's signal lexicons are English-only too.
 - "Reposts" covers both header-style reposts ("… reposted this") and bare
   reposts the new UI renders as an embedded original with no header (detected
   by a second "Visibility:" disclosure plus back-to-back timestamps with no

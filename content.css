@@ -93,3 +93,46 @@ html[data-theme="dark"] .dp-placeholder button {
 html[data-theme="dark"] .dp-placeholder button:hover {
   background: rgba(112, 181, 249, 0.12);
 }
+
+/* Slop badge: the card's first row, in normal flow — the header corner is
+   contested territory (Follow, dismiss, ⋯ vary by post type), so the pill
+   gets its own line and can't collide with anything. Hidden until the
+   generated rule for the enabled badge-mode filter shows it; the offense
+   receipt rides the native title tooltip. */
+
+.dp-slop-badge {
+  display: none;
+  align-self: flex-start;
+  align-items: center;
+  margin: 10px 20px 0;
+  padding: 2px 10px;
+  border: 1px solid rgba(157, 106, 3, 0.55);
+  border-radius: 12px;
+  background: rgba(240, 177, 41, 0.14);
+  color: #8a5a00;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.dp-slop-badge[data-tier="certified"] {
+  background: rgba(178, 64, 32, 0.14);
+  border-color: rgba(178, 64, 32, 0.6);
+  color: #99331a;
+}
+
+[data-color-scheme="dark"] .dp-slop-badge,
+html[data-theme="dark"] .dp-slop-badge {
+  background: rgba(240, 177, 41, 0.16);
+  border-color: rgba(240, 177, 41, 0.45);
+  color: #e8b34b;
+}
+
+[data-color-scheme="dark"] .dp-slop-badge[data-tier="certified"],
+html[data-theme="dark"] .dp-slop-badge[data-tier="certified"] {
+  background: rgba(241, 106, 71, 0.16);
+  border-color: rgba(241, 106, 71, 0.5);
+  color: #f28b6f;
+}

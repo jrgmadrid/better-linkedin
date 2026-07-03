@@ -14,9 +14,20 @@ function harvestListItem(li) {
     }
   }
 
+  // Full commentary text for slop-scorer calibration (specs/001). innerText,
+  // not textContent: broetry detection needs the visual line breaks — but
+  // innerText degrades to textContent on non-rendered elements, and most
+  // posts carry a hidden expandable-text-box twin. Prefer a rendered one,
+  // and dump structure diagnostics to pin down the paragraph markup.
+  const bodyEls = [...li.querySelectorAll('[data-testid="expandable-text-box"]')];
+  const bodyEl = bodyEls.find((el) => el.offsetParent !== null) || bodyEls[0] || null;
+
   return {
     componentkey: li.getAttribute('componentkey'),
     headText: clean(li.textContent).slice(0, 260),
+    body: bodyEl ? bodyEl.innerText.trim().slice(0, 6000) : null,
+    bodyRendered: bodyEl ? bodyEl.offsetParent !== null : null,
+    bodyHtml: bodyEl ? bodyEl.innerHTML.slice(0, 1500) : null,
     promoted: promotedLeaf,
     testids: [...li.querySelectorAll('[data-testid]')]
       .slice(0, 40)
@@ -84,7 +95,7 @@ function dpHarvest() {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'li-feed-markers-v4.json';
+  link.download = 'li-feed-markers-v6.json';
   link.click();
   URL.revokeObjectURL(link.href);
 

@@ -13,6 +13,10 @@
 // filters lives in a data-dp-hide attribute on <html>, and CSS rules generated
 // from DP_FILTERS intersect the two — so toggling a filter in the popup hides/
 // unhides instantly without touching any post again.
+//
+// Badge-mode filters (slop) use a parallel channel: the verdict lands in
+// data-dp-slop instead of data-dp-reasons, and the generated CSS shows a
+// pill on the still-visible post rather than collapsing it.
 
 const PROMOTED_LABELS = new Set([
   'Promoted',        // en
@@ -137,6 +141,115 @@ function classify(post) {
   return { reasons, who };
 }
 
+// Post commentary, for the slop scorer. innerText, not textContent: broetry
+// detection needs the visual line breaks. First match wins — embedded reposts
+// carry a second expandable-text-box, and the outer author's commentary is
+// the one being judged.
+const BODY_SELECTOR = [
+  '[data-testid="expandable-text-box"]',
+  '.feed-shared-update-v2__description',
+  '.update-components-text',
+].join(', ');
+
+// Prefer a rendered box: posts usually carry a hidden twin, and innerText on
+// a non-rendered element degrades to textContent — paragraph breaks (which
+// broetry detection needs) fuse away.
+function postBody(post) {
+  const els = [...post.querySelectorAll(BODY_SELECTOR)];
+  const el = els.find((e) => e.offsetParent !== null) || els[0];
+  return el ? el.innerText.trim() : '';
+}
+
+function djb2(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i += 1) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+// Verdict-cache identity: the unique token inside the root componentkey
+// ("expanded<token>FeedType_…" — distinct for all 108 posts in the harvest
+// set, and derived from the post, not the render pass), else the classic-DOM
+// activity URN, else a body-text hash.
+function postIdentity(post) {
+  const m = (post.getAttribute('componentkey') || '').match(/^expanded(.+?)FeedType/);
+  if (m) return m[1];
+  return post.getAttribute('data-id') || 'h' + djb2(postBody(post).slice(0, 300));
+}
+
+// Heuristic score ≥ LIKELY badges locally; the ambiguous band consults the
+// judge, whose score can mint, upgrade, or clear the badge. Below the band
+// is clean. Thresholds are calibrated by test/slop.test.js.
+const SLOP_LIKELY = 70;
+const SLOP_AMBIGUOUS = 40;
+const JUDGE_CERTIFIED = 85;
+const JUDGE_LIKELY = 60;
+
+const SLOP_TIER_LABEL = { likely: 'Likely slop', certified: 'Certified slop' };
+
+function syncSlopBadge(post) {
+  let badge = post.querySelector(':scope > .dp-slop-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'dp-slop-badge';
+    post.prepend(badge);
+  }
+  badge.dataset.tier = post.dataset.dpSlop;
+  badge.textContent = SLOP_TIER_LABEL[post.dataset.dpSlop];
+  badge.title = post.dataset.dpSlopWhy;
+}
+
+function applySlopVerdict(post, tier, offenses) {
+  post.dataset.dpSlop = tier;
+  post.dataset.dpSlopWhy = offenses
+    .map((o) => (o.detail ? `${o.label} (${o.detail})` : o.label))
+    .join('; ');
+  syncSlopBadge(post);
+}
+
+function clearSlopVerdict(post) {
+  delete post.dataset.dpSlop;
+  const badge = post.querySelector(':scope > .dp-slop-badge');
+  if (badge) badge.remove();
+}
+
+// Fire-and-forget: any failure ({ok: false}, dead worker, timeout) means the
+// heuristic verdict stands. dpJudged stops re-queueing across sweeps.
+function queueJudge(post) {
+  post.dataset.dpJudged = '1';
+  chrome.runtime.sendMessage(
+    { type: DP_JUDGE_MSG, id: postIdentity(post), text: postBody(post) },
+    (res) => {
+      if (chrome.runtime.lastError || !res || !res.ok) return;
+      if (res.score >= JUDGE_CERTIFIED) applySlopVerdict(post, 'certified', res.offenses);
+      else if (res.score >= JUDGE_LIKELY) applySlopVerdict(post, 'likely', res.offenses);
+      else clearSlopVerdict(post);
+    },
+  );
+}
+
+function scoreSlopPost(post, hidden) {
+  const body = postBody(post);
+  if (!body) return;
+  const { score, offenses } = scoreSlop(body);
+  post.dataset.dpSlopScore = score;
+  if (score >= SLOP_LIKELY) {
+    applySlopVerdict(post, 'likely', offenses);
+  } else if (score >= SLOP_AMBIGUOUS && !hidden && dpFilters.slop) {
+    queueJudge(post);
+  }
+}
+
+// Posts scored into the ambiguous band while the slop filter was off (or
+// hidden by another filter that later got disabled) get their judge call
+// when the toggle flips on.
+function requeueAmbiguous() {
+  for (const post of document.querySelectorAll('[data-dp-slop-score]')) {
+    if ('dpJudged' in post.dataset || 'dpSlop' in post.dataset || post.dataset.dpReasons) continue;
+    const score = Number(post.dataset.dpSlopScore);
+    if (score >= SLOP_AMBIGUOUS && score < SLOP_LIKELY) queueJudge(post);
+  }
+}
+
 // Rail widgets (LinkedIn News, Today's puzzles) live in the right-hand aside:
 // each widget card is a grandchild of the aside, so from the heading we climb
 // until the parent's parent is the aside. If the structure shifts and we hit
@@ -170,20 +283,28 @@ function sweep() {
       post.dataset.dpReasons = reasons.join(' ');
       if (who) post.dataset.dpWho = who;
     }
+    scoreSlopPost(post, reasons.length > 0);
   }
 
   // LinkedIn's renderer may reconcile away injected nodes; re-seed any
-  // classified post whose placeholder went missing.
+  // classified post whose placeholder or badge went missing.
   for (const post of document.querySelectorAll('[data-dp-reasons]')) {
     if (!post.querySelector(':scope > .dp-placeholder')) {
       post.prepend(buildPlaceholder(post, post.dataset.dpReasons.split(' ')));
     }
   }
+  for (const post of document.querySelectorAll('[data-dp-slop]')) {
+    if (!post.querySelector(':scope > .dp-slop-badge')) syncSlopBadge(post);
+  }
 }
 
+let dpFilters = DP_DEFAULTS;
+
 function applyFilters(filters) {
+  dpFilters = filters;
   const enabled = Object.keys(filters).filter((key) => filters[key]);
   document.documentElement.dataset.dpHide = enabled.join(' ');
+  if (filters.slop) requeueAmbiguous();
 }
 
 chrome.storage.sync.get(DP_DEFAULTS, applyFilters);
@@ -196,10 +317,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // Inject per-filter hide/show rules — macro-expansions of DP_FILTERS, so the
 // CSS stays in sync with the filter list automatically.
 const dpStyle = document.createElement('style');
-dpStyle.textContent = DP_FILTERS.map((f) => [
-  `html[data-dp-hide~="${f.key}"] [data-dp-reasons~="${f.key}"]:not([data-dp-revealed]) > :not(.dp-placeholder) { display: none !important; }`,
-  `html[data-dp-hide~="${f.key}"] [data-dp-reasons~="${f.key}"] > .dp-placeholder { display: flex !important; }`,
-].join('\n')).join('\n');
+dpStyle.textContent = DP_FILTERS.map((f) => (f.mode === 'badge'
+  ? `html[data-dp-hide~="${f.key}"] [data-dp-slop] > .dp-slop-badge { display: inline-flex !important; }`
+  : [
+    `html[data-dp-hide~="${f.key}"] [data-dp-reasons~="${f.key}"]:not([data-dp-revealed]) > :not(.dp-placeholder) { display: none !important; }`,
+    `html[data-dp-hide~="${f.key}"] [data-dp-reasons~="${f.key}"] > .dp-placeholder { display: flex !important; }`,
+  ].join('\n'))).join('\n');
 document.documentElement.appendChild(dpStyle);
 
 let scheduled = false;

@@ -1,2 +1,4 @@
 config.local.js
 .DS_Store
+# Eval corpora are verbatim third-party posts — never publish them.
+specs/001-slop-badge/eval/*.txt
