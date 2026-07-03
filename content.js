@@ -65,7 +65,7 @@ function buildPlaceholder(post, reasons) {
 
   const title = box.querySelector('.dp-title');
   const button = box.querySelector('button');
-  const author = postAuthor(post);
+  const author = post.dataset.dpWho || postAuthor(post);
   const sync = () => {
     const revealed = 'dpRevealed' in post.dataset;
     title.textContent = revealed
@@ -116,16 +116,25 @@ function isBareRepost(post) {
   return BARE_REPOST_PATTERN.test(post.textContent.replace(/\s+/g, ' ').slice(0, 400));
 }
 
+// Returns reasons plus `who`: for spillover posts, the connection whose
+// activity surfaced the post — their name is the header text preceding the
+// matched verb ("Saad Malik likes this…"). That's the name the user can
+// actually judge; the original author is usually a stranger.
 function classify(post) {
   const reasons = [];
+  let who = null;
   if (isPromoted(post)) reasons.push('promoted');
 
   const head = headSegment(post);
   for (const f of DP_FILTERS) {
-    if (f.pattern && f.pattern.test(head)) reasons.push(f.key);
+    if (!f.pattern) continue;
+    const m = f.pattern.exec(head);
+    if (!m) continue;
+    reasons.push(f.key);
+    if (who === null) who = head.slice(0, m.index).trim() || null;
   }
   if (!reasons.includes('reposts') && isBareRepost(post)) reasons.push('reposts');
-  return reasons;
+  return { reasons, who };
 }
 
 function sweep() {
@@ -136,8 +145,11 @@ function sweep() {
     // lets the MutationObserver naturally re-examine on the next mutation.
     if (!post.querySelector('[aria-label*="control menu"]')) continue;
     post.dataset.dpChecked = '1';
-    const reasons = classify(post);
-    if (reasons.length) post.dataset.dpReasons = reasons.join(' ');
+    const { reasons, who } = classify(post);
+    if (reasons.length) {
+      post.dataset.dpReasons = reasons.join(' ');
+      if (who) post.dataset.dpWho = who;
+    }
   }
 
   // LinkedIn's renderer may reconcile away injected nodes; re-seed any
