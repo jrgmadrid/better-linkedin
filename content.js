@@ -176,53 +176,84 @@ function postIdentity(post) {
   return post.getAttribute('data-id') || 'h' + djb2(postBody(post).slice(0, 300));
 }
 
-// Heuristic score ≥ LIKELY badges locally; the ambiguous band consults the
-// judge, whose score can mint, upgrade, or clear the badge. Below the band
-// is clean. Thresholds are calibrated by test/slop.test.js.
+// Families fire chips independently at their own threshold (spec R1,
+// amended); the aggregate score only gates the judge call. 40–69 gets a
+// second opinion: the judge can certify (adds the filled chip) or clear the
+// heuristic chips outright — that's the safety net for sincere posts that
+// merely look like slop. ≥70 is a final local conviction; <40 is never
+// judged, so its chips stand unappealed (accepted trade, see spec).
 const SLOP_LIKELY = 70;
 const SLOP_AMBIGUOUS = 40;
-const JUDGE_CERTIFIED = 85;
-const JUDGE_LIKELY = 60;
+const JUDGE_CERTIFIED = 60;
+const JUDGE_CLEAR = 40;
 
-const SLOP_TIER_LABEL = { likely: 'Likely slop', certified: 'Certified slop' };
+const SLOP_FAMILY_LABEL = Object.fromEntries(SLOP_FAMILIES.map((f) => [f.key, f.label]));
 
-function syncSlopBadge(post) {
-  let badge = post.querySelector(':scope > .dp-slop-badge');
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.className = 'dp-slop-badge';
-    post.prepend(badge);
+const slopReceipt = (offenses) => offenses
+  .map((o) => (o.detail ? `${o.label} (${o.detail})` : o.label))
+  .join('; ');
+
+function syncSlopChips(post) {
+  let box = post.querySelector(':scope > .dp-slop-badge');
+  if (!box) {
+    box = document.createElement('span');
+    box.className = 'dp-slop-badge';
+    post.prepend(box);
   }
-  badge.dataset.tier = post.dataset.dpSlop;
-  badge.textContent = SLOP_TIER_LABEL[post.dataset.dpSlop];
-  badge.title = post.dataset.dpSlopWhy;
+  box.textContent = '';
+  const why = JSON.parse(post.dataset.dpSlopWhy || '{}');
+  for (const fam of (post.dataset.dpSlopFams || '').split(' ').filter(Boolean)) {
+    const chip = document.createElement('span');
+    chip.className = 'dp-slop-chip';
+    chip.dataset.fam = fam;
+    chip.textContent = SLOP_FAMILY_LABEL[fam];
+    chip.title = why[fam] || '';
+    box.appendChild(chip);
+  }
+  if ('dpSlopCertified' in post.dataset) {
+    const chip = document.createElement('span');
+    chip.className = 'dp-slop-chip';
+    chip.dataset.fam = 'certified';
+    chip.textContent = 'Certified slop';
+    chip.title = post.dataset.dpSlopJudgeWhy || '';
+    box.appendChild(chip);
+  }
 }
 
-function applySlopVerdict(post, tier, offenses) {
-  post.dataset.dpSlop = tier;
-  post.dataset.dpSlopWhy = offenses
-    .map((o) => (o.detail ? `${o.label} (${o.detail})` : o.label))
-    .join('; ');
-  syncSlopBadge(post);
+function applySlopFamilies(post, families) {
+  post.dataset.dpSlopFams = families.map((f) => f.key).join(' ');
+  post.dataset.dpSlopWhy = JSON.stringify(
+    Object.fromEntries(families.map((f) => [f.key, slopReceipt(f.offenses)])),
+  );
+  syncSlopChips(post);
 }
 
-function clearSlopVerdict(post) {
-  delete post.dataset.dpSlop;
-  const badge = post.querySelector(':scope > .dp-slop-badge');
-  if (badge) badge.remove();
+function certifySlop(post, offenses) {
+  post.dataset.dpSlopCertified = '1';
+  post.dataset.dpSlopJudgeWhy = slopReceipt(offenses);
+  if (!post.dataset.dpSlopFams) post.dataset.dpSlopFams = '';
+  syncSlopChips(post);
+}
+
+function clearSlop(post) {
+  delete post.dataset.dpSlopFams;
+  delete post.dataset.dpSlopWhy;
+  delete post.dataset.dpSlopCertified;
+  delete post.dataset.dpSlopJudgeWhy;
+  const box = post.querySelector(':scope > .dp-slop-badge');
+  if (box) box.remove();
 }
 
 // Fire-and-forget: any failure ({ok: false}, dead worker, timeout) means the
-// heuristic verdict stands. dpJudged stops re-queueing across sweeps.
+// heuristic chips stand. dpJudged stops re-queueing across sweeps.
 function queueJudge(post) {
   post.dataset.dpJudged = '1';
   chrome.runtime.sendMessage(
     { type: DP_JUDGE_MSG, id: postIdentity(post), text: postBody(post) },
     (res) => {
       if (chrome.runtime.lastError || !res || !res.ok) return;
-      if (res.score >= JUDGE_CERTIFIED) applySlopVerdict(post, 'certified', res.offenses);
-      else if (res.score >= JUDGE_LIKELY) applySlopVerdict(post, 'likely', res.offenses);
-      else clearSlopVerdict(post);
+      if (res.score >= JUDGE_CERTIFIED) certifySlop(post, res.offenses);
+      else if (res.score < JUDGE_CLEAR) clearSlop(post);
     },
   );
 }
@@ -230,11 +261,10 @@ function queueJudge(post) {
 function scoreSlopPost(post, hidden) {
   const body = postBody(post);
   if (!body) return;
-  const { score, offenses } = scoreSlop(body);
+  const { score, families } = scoreSlop(body);
   post.dataset.dpSlopScore = score;
-  if (score >= SLOP_LIKELY) {
-    applySlopVerdict(post, 'likely', offenses);
-  } else if (score >= SLOP_AMBIGUOUS && !hidden && dpFilters.slop) {
+  if (families.length) applySlopFamilies(post, families);
+  if (score >= SLOP_AMBIGUOUS && score < SLOP_LIKELY && !hidden && dpFilters.slop) {
     queueJudge(post);
   }
 }
@@ -244,7 +274,7 @@ function scoreSlopPost(post, hidden) {
 // when the toggle flips on.
 function requeueAmbiguous() {
   for (const post of document.querySelectorAll('[data-dp-slop-score]')) {
-    if ('dpJudged' in post.dataset || 'dpSlop' in post.dataset || post.dataset.dpReasons) continue;
+    if ('dpJudged' in post.dataset || post.dataset.dpReasons) continue;
     const score = Number(post.dataset.dpSlopScore);
     if (score >= SLOP_AMBIGUOUS && score < SLOP_LIKELY) queueJudge(post);
   }
@@ -293,8 +323,8 @@ function sweep() {
       post.prepend(buildPlaceholder(post, post.dataset.dpReasons.split(' ')));
     }
   }
-  for (const post of document.querySelectorAll('[data-dp-slop]')) {
-    if (!post.querySelector(':scope > .dp-slop-badge')) syncSlopBadge(post);
+  for (const post of document.querySelectorAll('[data-dp-slop-fams]')) {
+    if (!post.querySelector(':scope > .dp-slop-badge')) syncSlopChips(post);
   }
 }
 
@@ -318,7 +348,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // CSS stays in sync with the filter list automatically.
 const dpStyle = document.createElement('style');
 dpStyle.textContent = DP_FILTERS.map((f) => (f.mode === 'badge'
-  ? `html[data-dp-hide~="${f.key}"] [data-dp-slop] > .dp-slop-badge { display: inline-flex !important; }`
+  ? `html[data-dp-hide~="${f.key}"] [data-dp-slop-fams] > .dp-slop-badge { display: inline-flex !important; }`
   : [
     `html[data-dp-hide~="${f.key}"] [data-dp-reasons~="${f.key}"]:not([data-dp-revealed]) > :not(.dp-placeholder) { display: none !important; }`,
     `html[data-dp-hide~="${f.key}"] [data-dp-reasons~="${f.key}"] > .dp-placeholder { display: flex !important; }`,

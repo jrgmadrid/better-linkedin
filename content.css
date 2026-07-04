@@ -94,22 +94,28 @@ html[data-theme="dark"] .dp-placeholder button:hover {
   background: rgba(112, 181, 249, 0.12);
 }
 
-/* Slop badge: the card's first row, in normal flow — the header corner is
-   contested territory (Follow, dismiss, ⋯ vary by post type), so the pill
-   gets its own line and can't collide with anything. Hidden until the
-   generated rule for the enabled badge-mode filter shows it; the offense
-   receipt rides the native title tooltip. */
+/* Slop chips: the card's first row, in normal flow — the header corner is
+   contested territory (Follow, dismiss, ⋯ vary by post type), so the row
+   gets its own line and can't collide with anything. One chip per fired
+   signal family; each chip's offense receipt rides its title tooltip.
+   Hidden until the generated rule for the enabled badge-mode filter shows
+   the container. */
 
 .dp-slop-badge {
   display: none;
   align-self: flex-start;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 10px 20px 0;
+}
+
+.dp-slop-chip {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 10px;
-  border: 1px solid rgba(157, 106, 3, 0.55);
+  border: 1px solid;
   border-radius: 12px;
-  background: rgba(240, 177, 41, 0.14);
-  color: #8a5a00;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.6;
@@ -117,22 +123,55 @@ html[data-theme="dark"] .dp-placeholder button:hover {
   cursor: help;
 }
 
-.dp-slop-badge[data-tier="certified"] {
-  background: rgba(178, 64, 32, 0.14);
-  border-color: rgba(178, 64, 32, 0.6);
+.dp-slop-chip[data-fam="broetry"] {
+  background: rgba(240, 177, 41, 0.14);
+  border-color: rgba(157, 106, 3, 0.55);
+  color: #8a5a00;
+}
+
+.dp-slop-chip[data-fam="bait"] {
+  background: rgba(128, 82, 220, 0.1);
+  border-color: rgba(128, 82, 220, 0.5);
+  color: #6240b8;
+}
+
+.dp-slop-chip[data-fam="ad"] {
+  background: rgba(178, 64, 32, 0.1);
+  border-color: rgba(178, 64, 32, 0.55);
   color: #99331a;
 }
 
-[data-color-scheme="dark"] .dp-slop-badge,
-html[data-theme="dark"] .dp-slop-badge {
+/* Judge-confirmed: filled, unmissable. */
+.dp-slop-chip[data-fam="certified"] {
+  background: #99331a;
+  border-color: #99331a;
+  color: #fff;
+}
+
+[data-color-scheme="dark"] .dp-slop-chip[data-fam="broetry"],
+html[data-theme="dark"] .dp-slop-chip[data-fam="broetry"] {
   background: rgba(240, 177, 41, 0.16);
   border-color: rgba(240, 177, 41, 0.45);
   color: #e8b34b;
 }
 
-[data-color-scheme="dark"] .dp-slop-badge[data-tier="certified"],
-html[data-theme="dark"] .dp-slop-badge[data-tier="certified"] {
+[data-color-scheme="dark"] .dp-slop-chip[data-fam="bait"],
+html[data-theme="dark"] .dp-slop-chip[data-fam="bait"] {
+  background: rgba(159, 122, 234, 0.16);
+  border-color: rgba(159, 122, 234, 0.45);
+  color: #b79df2;
+}
+
+[data-color-scheme="dark"] .dp-slop-chip[data-fam="ad"],
+html[data-theme="dark"] .dp-slop-chip[data-fam="ad"] {
   background: rgba(241, 106, 71, 0.16);
   border-color: rgba(241, 106, 71, 0.5);
   color: #f28b6f;
+}
+
+[data-color-scheme="dark"] .dp-slop-chip[data-fam="certified"],
+html[data-theme="dark"] .dp-slop-chip[data-fam="certified"] {
+  background: #c74a26;
+  border-color: #c74a26;
+  color: #fff;
 }

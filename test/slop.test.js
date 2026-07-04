@@ -4,7 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { SLOP_SIGNALS, scoreSlop } = require('../slop.js');
+const { SLOP_SIGNALS, SLOP_FAMILIES, SLOP_FAMILY_THRESHOLD, scoreSlop } = require('../slop.js');
 
 let failures = 0;
 function check(name, cond, extra = '') {
@@ -77,6 +77,29 @@ check('short posts score 0', short.score === 0 && short.offenses.length === 0);
 const scored = scoreSlop(BROETRY + "\n\nIt's not about luck, it's about grit.\n\nAgree?");
 check('offenses sorted by weight', scored.offenses.length >= 2);
 check('score clamped to 100', scoreSlop(Array(30).fill('✅ Win — daily — always. Agree? #a #b #c #d').join('\n')).score <= 100);
+
+// ---- families (chips) -----------------------------------------------------
+
+console.log('families:');
+check('every signal maps to a declared family', SLOP_SIGNALS.every(
+  (s) => SLOP_FAMILIES.some((f) => f.key === s.family)));
+
+const famKeys = (text) => scoreSlop(text).families.map((f) => f.key);
+
+check('broetry fires alone', JSON.stringify(famKeys(BROETRY)) === '["broetry"]');
+check('ad family fires on ad spam', famKeys(
+  'PROMOTIONAL PRODUCTS for TRADE SHOWS and GOLF TOURNAMENTS — QUALITY GUARANTEED every time. '
+  + 'Call today for a written quote from our sales office in Montreal. Tel: (514) 695-9001. '
+  + 'https://lnkd.in/abc https://lnkd.in/def',
+).includes('ad'));
+check('below-threshold family stays quiet', !famKeys(
+  PROSE + ' More context here: https://blog.example.com/a and https://blog.example.com/b',
+).includes('ad'));
+check('multi-family post fires multiple chips', famKeys(
+  BROETRY + "\n\nIt's not about luck, it's about grit.\n\nRepost if this resonated. ♻️\n#a #b #c #d #e #f",
+).length >= 2);
+check('clean prose fires nothing', famKeys(PROSE).length === 0);
+check('family offenses carry receipts', scoreSlop(BROETRY).families[0].offenses[0].detail.length > 0);
 
 // ---- eval-set calibration (T4 fixtures) -----------------------------------
 

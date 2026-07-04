@@ -40,23 +40,27 @@ without re-scanning anything. Settings sync via `chrome.storage.sync`.
 
 ## Slop badge
 
-Posts are scored for *slop* — formulaic engagement-farming prose (broetry
-line-stacking, "It's not X, it's Y", emoji-bullet listicles, "Agree?"
-closers). It's an aesthetic judgment about the text, deliberately **not** an
-"AI-generated" claim: a human-written hustle post earns the badge just fine.
-Hover the pill for the itemized offense receipt.
+Posts are scored for *slop* — formulaic engagement-farming prose. It's an
+aesthetic judgment about the text, deliberately **not** an "AI-generated"
+claim: a human-written hustle post earns its chips just fine. Signals group
+into three families, each rendering its own chip when it fires: **Broetry**
+(line-stacking, "It's not X, it's Y", em-dashes, buzzwords), **Engagement
+bait** ("Agree?", repost CTAs, hashtag walls), and **Ad spam** (ALL-CAPS
+shouting, link piles, contact blocks). A judge-confirmed post gains a filled
+**Certified slop** chip. Hover any chip for its itemized offense receipt.
 
 Two tiers, two brains:
 
 1. **Heuristic scorer** (`slop.js`) — free, local, synchronous; runs on every
-   post's commentary. Clear slop gets badged **Likely slop** immediately;
-   clearly fine posts are done.
-2. **LLM judge** (`worker.js`) — posts scoring in the ambiguous middle band
-   are sent to an OpenAI-compatible endpoint (DeepSeek by default) from the
-   background service worker. The judge can mint, upgrade (**Certified
-   slop**), or clear a badge. Verdicts are cached per post, judged at most
-   once, and every failure mode falls back to the heuristic verdict — the
-   feed never waits on the network.
+   post's commentary. Each family chips independently at its own points
+   threshold; clearly fine posts are done.
+2. **LLM judge** (`worker.js`) — posts whose aggregate score lands in the
+   ambiguous middle band are sent to an OpenAI-compatible endpoint (DeepSeek
+   by default) from the background service worker. The judge can certify
+   (filled chip) or clear the heuristic chips outright — the mercy path for
+   sincere posts that merely look like slop. Verdicts are cached per post,
+   judged at most once, and every failure mode falls back to the heuristic
+   chips — the feed never waits on the network.
 
 The judge is optional. To enable it, copy `config.local.example.js` to
 `config.local.js` (gitignored) and fill in your API key; without it the

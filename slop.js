@@ -2,10 +2,19 @@
 // formulaic engagement-farming patterns score points whether a human or an
 // LLM wrote them. Pure — no DOM, no chrome.* — so node can load it for tests.
 //
-// Weights are calibrated against the labeled eval set in
+// Signals group into families; each family fires its own badge chip when its
+// points cross SLOP_FAMILY_THRESHOLD, independent of the aggregate score
+// (spec R1, amended). The aggregate still gates the judge call: 40–69 gets a
+// second opinion. Weights are calibrated against the labeled eval set in
 // specs/001-slop-badge/eval/ (test/slop.test.js); tune there, not by vibes.
-// Roughly: one signal alone stays clean, two land in the ambiguous band
-// (judge decides), three or more clear the local "likely" threshold.
+
+const SLOP_FAMILIES = [
+  { key: 'broetry', label: 'Broetry' },
+  { key: 'bait',    label: 'Engagement bait' },
+  { key: 'ad',      label: 'Ad spam' },
+];
+
+const SLOP_FAMILY_THRESHOLD = 20;
 
 const SLOP_BUZZWORDS =
   /game-?changer|paradigm shift|deep dive|double[- ]down|unlock(?:ing)? (?:your|the)|superpower|10x|rocket ?ship|grindset|thought leader|personal brand|hot take|unpopular opinion|i['’]?m (?:humbled|thrilled|excited) to (?:announce|share)|elevate your|masterclass in|let['’]?s be honest|read that again|the hard truth|nobody talks about/gi;
@@ -29,6 +38,7 @@ const SLOP_NOT_BUT =
 const SLOP_SIGNALS = [
   {
     key: 'broetry',
+    family: 'broetry',
     label: 'Broetry line-stacking',
     detect: (text, ctx) => {
       if (ctx.lines.length < 6) return null;
@@ -39,6 +49,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'notbut',
+    family: 'broetry',
     label: '"It\'s not X, it\'s Y"',
     detect: (text) => {
       const n = (text.match(SLOP_NOT_BUT) || []).length;
@@ -47,6 +58,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'emojibullets',
+    family: 'broetry',
     label: 'Emoji-bullet list',
     detect: (text, ctx) => {
       const n = ctx.lines.filter((l) => SLOP_EMOJI_BULLET.test(l)).length;
@@ -55,6 +67,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'baitcloser',
+    family: 'bait',
     label: 'Engagement-bait closer',
     detect: (text) => {
       const tail = text.slice(-220);
@@ -67,6 +80,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'emdash',
+    family: 'broetry',
     label: 'Em-dash density',
     detect: (text, ctx) => {
       const n = (text.match(/[—–]/g) || []).length;
@@ -80,6 +94,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'buzzwords',
+    family: 'broetry',
     label: 'Buzzword lexicon',
     detect: (text) => {
       const hits = [...new Set((text.match(SLOP_BUZZWORDS) || []).map((h) => h.toLowerCase()))];
@@ -92,6 +107,7 @@ const SLOP_SIGNALS = [
   // caught by neither buzzwords nor bait closers.
   {
     key: 'shouting',
+    family: 'ad',
     label: 'ALL-CAPS shouting',
     detect: (text, ctx) => {
       // ≥5 letters so acronyms (API, JSON, HTTP) don't convict tech posts.
@@ -102,6 +118,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'linkpile',
+    family: 'ad',
     label: 'Link pile',
     detect: (text) => {
       const n = (text.match(/https?:\/\/|\bwww\.|\blnkd\.in\//g) || []).length;
@@ -110,6 +127,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'contactblock',
+    family: 'ad',
     label: 'Contact block',
     detect: (text) => {
       const phone = /(?:^|\s)(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]?\d{4}\b/.test(text);
@@ -120,6 +138,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'rhetq',
+    family: 'broetry',
     label: 'Rhetorical-question pileup',
     detect: (text) => {
       const n = (text.match(/\?/g) || []).length;
@@ -128,6 +147,7 @@ const SLOP_SIGNALS = [
   },
   {
     key: 'hashtags',
+    family: 'bait',
     label: 'Hashtag pileup',
     detect: (text) => {
       const n = (text.match(/#[A-Za-z0-9_]+/g) || []).length;
@@ -141,24 +161,39 @@ function scoreSlop(text) {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   const words = text.split(/\s+/).filter(Boolean).length;
   // Too short to have a rhythm — one-liners can't be slop, only wrong.
-  if (words < 25) return { score: 0, offenses: [] };
+  if (words < 25) return { score: 0, offenses: [], families: [] };
 
   const ctx = { lines, words };
   const offenses = [];
+  const perFamily = {};
   let score = 0;
   for (const s of SLOP_SIGNALS) {
     const hit = s.detect(text, ctx);
     if (!hit) continue;
     score += hit.points;
     offenses.push({ label: s.label, detail: hit.detail, points: hit.points });
+    const fam = perFamily[s.family] || (perFamily[s.family] = { points: 0, offenses: [] });
+    fam.points += hit.points;
+    fam.offenses.push({ label: s.label, detail: hit.detail });
   }
   offenses.sort((a, b) => b.points - a.points);
+
+  const families = SLOP_FAMILIES
+    .filter((f) => (perFamily[f.key] || { points: 0 }).points >= SLOP_FAMILY_THRESHOLD)
+    .map((f) => ({
+      key: f.key,
+      label: f.label,
+      points: perFamily[f.key].points,
+      offenses: perFamily[f.key].offenses,
+    }));
+
   return {
     score: Math.min(100, score),
     offenses: offenses.map(({ label, detail }) => ({ label, detail })),
+    families,
   };
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { SLOP_SIGNALS, scoreSlop };
+  module.exports = { SLOP_SIGNALS, SLOP_FAMILIES, SLOP_FAMILY_THRESHOLD, scoreSlop };
 }
