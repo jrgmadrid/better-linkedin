@@ -102,6 +102,16 @@
     footer button:hover {
       background: #eef3f8;
     }
+    footer button.icon {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 7px;
+    }
+    footer button.icon svg {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
     #harvest-status {
       font-size: 11px;
       color: #5b6772;
@@ -112,7 +122,13 @@
   <header>LinkedOut</header>
   <main id="sections"></main>
   <footer>
-    <button id="reload" title="Reload the extension and refresh LinkedIn tabs">Reload</button>
+    <button id="reload" class="icon" title="Reload the extension and refresh LinkedIn tabs" aria-label="Reload the extension">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+    </button>
     <button id="settings" title="Judge key, feed forensics, other weirdo business">Advanced settings for weirdos</button>
   </footer>
   <script src="filters.js"></script>
