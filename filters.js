@@ -1,5 +1,7 @@
 const DP_HARVEST_MSG = 'dp-harvest';
 const DP_JUDGE_MSG = 'dp-judge';
+const DP_JUDGE_TEST = 'dp-judge-test';
+const DP_JUDGE_CFG = 'dpJudgeConfig';
 
 // Popup sections, in display order. Feed filters group by who injected the
 // noise: LinkedIn itself, your network's activity, or the reposter.

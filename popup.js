@@ -109,6 +109,10 @@ document.getElementById('reload').addEventListener('click', () => {
   chrome.runtime.reload();
 });
 
+document.getElementById('judge-cfg').addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
+});
+
 document.getElementById('harvest').addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {

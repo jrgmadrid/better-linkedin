@@ -6,16 +6,35 @@
 
 importScripts('filters.js');
 
-// Fresh clones have no config.local.js; the judge tier just stays off.
-let judge = null;
+// Judge config resolves lazily: a key entered on the options page
+// (storage.local, machine-local) wins; config.local.js is the dev
+// fallback; neither means the judge tier stays off (R5, amended).
+const JUDGE_DEFAULTS = { base: 'https://api.deepseek.com', model: 'deepseek-v4-flash' };
+
+let fileJudge = null;
 try {
   importScripts('config.local.js');
   if (typeof DEEPSEEK_API_KEY === 'string' && !DEEPSEEK_API_KEY.includes('REPLACE')) {
-    judge = { key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, base: API_BASE };
+    fileJudge = { key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, base: API_BASE };
   }
 } catch {
-  // no-op — heuristics-only mode
+  // no-op — storage config or heuristics-only mode
 }
+
+let judgePromise = null;
+function judgeConfig() {
+  judgePromise ??= chrome.storage.local.get(DP_JUDGE_CFG).then(({ [DP_JUDGE_CFG]: c }) => {
+    if (c?.apiKey) {
+      return { key: c.apiKey, base: c.apiBase || JUDGE_DEFAULTS.base, model: c.model || JUDGE_DEFAULTS.model };
+    }
+    return fileJudge;
+  });
+  return judgePromise;
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[DP_JUDGE_CFG]) judgePromise = null;
+});
 
 const JUDGE_FAMILIES = new Set(['broetry', 'bait', 'ad', 'promotion']);
 
@@ -37,7 +56,7 @@ Family guide: "broetry" = performative prose mechanics; "bait" = engagement mech
 
 Respond with strict JSON: {"score": <0-100>, "offenses": [{"family": "<broetry|bait|ad|promotion>", "label": "<short name>", "detail": "<specific evidence, quoted if possible>"}]} with at most 4 offenses, worst first. Empty offenses array if score < 40 and no undisclosed promotion found.`;
 
-async function callJudge(text) {
+async function callJudge(judge, text) {
   const res = await fetch(`${judge.base}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -115,13 +134,14 @@ function release() {
 async function verdictFor(id, text) {
   const cached = await cacheGet(id);
   if (cached) return { ok: true, score: cached.score, offenses: cached.offenses };
+  const judge = await judgeConfig();
   if (!judge) return { ok: false };
 
   if (!inflight.has(id)) {
     inflight.set(id, (async () => {
       await acquire();
       try {
-        const verdict = await callJudge(text);
+        const verdict = await callJudge(judge, text);
         await cachePut(id, verdict);
         return { ok: true, ...verdict };
       } finally {
@@ -133,10 +153,33 @@ async function verdictFor(id, text) {
   return inflight.get(id).catch(() => ({ ok: false }));
 }
 
+// The options page's test button: one real, uncached judge call on a canned
+// slop snippet. The only surface where a failure is allowed to say why —
+// fail-open makes a broken key silent everywhere else. Never echoes the key.
+const JUDGE_TEST_TEXT =
+  'Repost if you agree! Follow for more insights like this. '
+  + 'Link in the first comment. Agree? #growth #mindset #hustle #grindset';
+
+async function testJudge() {
+  const judge = await judgeConfig();
+  if (!judge) return { ok: false, error: 'no key configured' };
+  try {
+    const verdict = await callJudge(judge, JUDGE_TEST_TEXT);
+    return { ok: true, score: verdict.score };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e).slice(0, 120) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== DP_JUDGE_MSG) return;
-  verdictFor(msg.id, msg.text).then(sendResponse, () => sendResponse({ ok: false }));
-  return true;
+  if (msg?.type === DP_JUDGE_MSG) {
+    verdictFor(msg.id, msg.text).then(sendResponse, () => sendResponse({ ok: false }));
+    return true;
+  }
+  if (msg?.type === DP_JUDGE_TEST) {
+    testJudge().then(sendResponse);
+    return true;
+  }
 });
 
 // Dev loop: reloading the extension (popup button or chrome://extensions)
