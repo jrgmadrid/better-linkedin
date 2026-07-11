@@ -19,12 +19,15 @@ const DP_FILTERS = [
   { key: 'suggested', label: 'Suggested posts',     hint: '"Recommended for you"',         reasonLabel: 'Suggested post',     pattern: /suggested for you|recommended for you/i,                    enabled: false, section: 'injected' },
   // Rail widgets, not feed posts: hidden outright by sweepWidgets(), no placeholder.
   { key: 'railwidgets', label: 'News & games',      hint: '"LinkedIn News", "Today’s puzzles"', reasonLabel: 'News & games', pattern: null,                                                 enabled: false, section: 'injected' },
-  { key: 'reactions', label: 'Reaction spillover',  hint: '"Jane Doe likes this"',         reasonLabel: 'Reaction spillover', pattern: /(?:likes|loves|celebrates|supports|finds) this|reacted to/,  enabled: false, section: 'spillover' },
+  // Verbs are optional-s: multiple reactors conjugate plural ("Colin and
+  // William like this"), and the singular-only pattern let those walk.
+  { key: 'reactions', label: 'Reaction spillover',  hint: '"Jane Doe likes this"',         reasonLabel: 'Reaction spillover', pattern: /(?:likes?|loves?|celebrates?|supports?|finds?) this|reacted to/, enabled: false, section: 'spillover' },
   // No trailing \b on comments/reposts/follows: the DOM concatenates text nodes
   // without whitespace, so the verb runs straight into the author's name
   // ("commentedMikey Taylor").
   { key: 'comments',  label: 'Comment spillover',   hint: '"Jane Doe commented"',          reasonLabel: 'Comment spillover',  pattern: /\bcommented|\breplied/,                                      enabled: false, section: 'spillover' },
-  { key: 'follows',   label: 'Follow spillover',    hint: '"Jane Doe follows Acme Corp"',  reasonLabel: 'Follow spillover',   pattern: /\bfollows/,                                                  enabled: false, section: 'spillover' },
+  // \bfollow\b (not follows?) so plural headers match while "follower" never can.
+  { key: 'follows',   label: 'Follow spillover',    hint: '"Jane Doe follows Acme Corp"',  reasonLabel: 'Follow spillover',   pattern: /\bfollows|\bfollow\b/,                                       enabled: false, section: 'spillover' },
   { key: 'reposts',   label: 'Reposts',             hint: '"Jane Doe reposted this"',      reasonLabel: 'Repost',             pattern: /\breposted/,                                                 enabled: false, section: 'reposts' },
   { key: 'figleaf',   label: 'Fig-leaf reposts',    hint: '"Couldn’t agree more" + repost', reasonLabel: 'Fig-leaf repost',   pattern: null,                                                         enabled: true,  section: 'reposts' },
   { key: 'slop',      label: 'Slop chips',          hint: 'Verdict chips with offense receipts', reasonLabel: 'Likely slop', pattern: null,                                     enabled: true,  mode: 'badge', section: 'slop' },

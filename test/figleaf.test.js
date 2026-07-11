@@ -2,7 +2,7 @@
 // half of the detector (two-Visibility embed signature) is exercised by the
 // harvest replay, not here. Run with `node test/figleaf.test.js`.
 
-const { isFigleafCommentary } = require('../filters.js');
+const { DP_FILTERS, isFigleafCommentary } = require('../filters.js');
 
 let failures = 0;
 function check(name, cond) {
@@ -33,6 +33,19 @@ check('over the word cap', !isFigleafCommentary('I agree fully with the premise 
 check('substantive short take', !isFigleafCommentary('This changed how we run standups.'));
 check('empty commentary is bare-repost turf', !isFigleafCommentary(''));
 check('unrelated one-liner', !isFigleafCommentary('Interesting dataset.'));
+
+// ---- spillover header patterns: singular AND plural actors match ----------
+
+console.log('header patterns:');
+const pat = (key) => DP_FILTERS.find((f) => f.key === key).pattern;
+check('reactions: one actor', pat('reactions').test('Saad Malik likes this'));
+check('reactions: two actors', pat('reactions').test('Colin Perepelken and William Katae like this'));
+check('reactions: plural celebrate', pat('reactions').test('Ana Silva and 3 others celebrate this'));
+check('reactions: no body-text reach', !pat('reactions').test('Josh Andrews'));
+check('follows: one actor', pat('follows').test('Jane Doe follows Acme Corp'));
+check('follows: two actors', pat('follows').test('Jane Doe and Joe Bloggs follow Acme Corp'));
+check('follows: verb runs into the next node', pat('follows').test('Jane Doe followsAcme Corp'));
+check('follows: "follower" never matches', !pat('follows').test('Acme Corp follower spotlight'));
 
 console.log(failures ? `\n${failures} failure(s)` : '\nall green');
 process.exit(failures ? 1 : 0);
