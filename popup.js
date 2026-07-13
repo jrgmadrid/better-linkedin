@@ -12,8 +12,9 @@ const GROUPS = DP_SECTIONS.map((s) => {
   };
 });
 
-function buildRow(f) {
+function buildRow(f, cls) {
   const li = document.createElement('li');
+  li.className = cls;
   const lbl = document.createElement('label');
   const input = document.createElement('input');
   input.type = 'checkbox';
@@ -30,37 +31,37 @@ function buildRow(f) {
   return li;
 }
 
-// Groups of two or more rows get a header checkbox that toggles the whole
-// group; indeterminate shows a mixed state. A group of one would just be
-// the row's own toggle wearing a hat, so it gets a plain heading.
-function buildHeading(tag, title, rows) {
-  const h = document.createElement(tag);
-  if (rows.length < 2) {
-    h.textContent = title;
-    return h;
-  }
+// The popup is a two-level checkbox tree: a group of two or more rows gets
+// a parent row whose checkbox toggles the whole group (indeterminate when
+// mixed), children indent beneath it. A group of one is just a row at
+// parent level — its own toggle already is the group toggle.
+function buildParentToggle(title, rows) {
+  const li = document.createElement('li');
+  li.className = 'parent';
   const lbl = document.createElement('label');
   const box = document.createElement('input');
   box.type = 'checkbox';
   box.dataset.groupKeys = rows.map((f) => f.key).join(' ');
   lbl.append(box, document.createTextNode(title));
-  h.appendChild(lbl);
-  return h;
+  li.appendChild(lbl);
+  return li;
 }
 
 const main = document.getElementById('sections');
 for (const g of GROUPS) {
-  const section = document.createElement('section');
   const ul = document.createElement('ul');
-  for (const f of g.rows) ul.appendChild(buildRow(f));
-  section.append(buildHeading('h2', g.title, g.rows), ul);
-  if (g.sub) {
-    const subUl = document.createElement('ul');
-    subUl.className = 'sub';
-    for (const f of g.sub.rows) subUl.appendChild(buildRow(f));
-    section.append(buildHeading('h3', g.sub.title, g.sub.rows), subUl);
+  ul.className = 'group';
+  if (g.rows.length >= 2) {
+    ul.appendChild(buildParentToggle(g.title, g.rows));
+    for (const f of g.rows) ul.appendChild(buildRow(f, 'child'));
+  } else {
+    for (const f of g.rows) ul.appendChild(buildRow(f, 'parent'));
   }
-  main.appendChild(section);
+  if (g.sub) {
+    ul.appendChild(buildParentToggle(g.sub.title, g.sub.rows));
+    for (const f of g.sub.rows) ul.appendChild(buildRow(f, 'child'));
+  }
+  main.appendChild(ul);
 }
 
 const checkboxes = document.querySelectorAll('input[data-filter]');
