@@ -69,7 +69,10 @@ check('commandbait emoji +', hit('commandbait', 'THIS 👇 👍/ 🔄 if you agr
 check('commandbait -', hit('commandbait', 'Readers will agree or disagree with the framework, and that is healthy.') === null);
 
 check('reachhack link +', hit('reachhack', 'Full breakdown is free. Link in the first comment!') !== null);
+check('reachhack article +', hit('reachhack', 'How much should you be spending on AI? Article in comments...') !== null);
+check('reachhack noun wardrobe +', hit('reachhack', 'Full guide in the pinned comments for anyone who wants it.') !== null);
 check('reachhack dm +', hit('reachhack', 'DM me for the link and I will send it right over.') !== null);
+check('reachhack dm noun +', hit('reachhack', 'DM me for the template and I will send it over.') !== null);
 check('reachhack code +', hit('reachhack', 'Use code LAUNCH20 at checkout this week only.') !== null);
 check('reachhack -', hit('reachhack', 'I linked the docs in a comment yesterday; the code uses standard retries.') === null);
 

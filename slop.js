@@ -45,9 +45,13 @@ const SLOP_STYLED_RUN = /[\u{1D400}-\u{1D7FF}]{3,}/gu;
 
 // Mechanical reach-hacks: gaming the algorithm is bait by definition, no
 // intent judgment needed. "Link in the first comment" dodges the external-
-// link penalty; DM-gating trades access for engagement.
+// link penalty — and the payload noun is a whole wardrobe (article, guide,
+// PDF, source…), so it varies freely while the "…in the comments" redirect
+// frame stays the crime (recall-leaning by owner decree, 2026-07-15).
+// "in a comment" doesn't match: past-tense discussion of comments walks.
+// DM-gating trades access for engagement.
 const SLOP_REACH_HACK =
-  /\blink (?:is |will be )?in (?:the )?(?:first |1st )?comments?\b|\bdm me for (?:the )?(?:link|details|access|info)\b|\buse (?:promo )?code\s+[A-Za-z0-9]+/gi;
+  /\b(?:links?|articles?|details|deets|full (?:article|post|story|guide|version|breakdown)|breakdowns?|guides?|templates?|pdfs?|resources?|sources?|reports?|stud(?:y|ies)|papers?|videos?|recordings?|slides|decks?|code|repos?|prompts?|checklists?|cheat ?sheets?)(?: is| are| will be)? in (?:the )?(?:first |1st |pinned )?comments?\b|\bdm me for (?:the )?(?:link|details|access|info|pdf|guide|template|copy)\b|\buse (?:promo )?code\s+[A-Za-z0-9]+/gi;
 
 // Promo-suspicion markers (spec R9). Zero points, no family: promotion is an
 // intent judgment and regex never convicts — a hit only widens the judge
