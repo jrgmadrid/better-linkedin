@@ -6,10 +6,13 @@
 function harvestListItem(li) {
   const clean = (text) => text.trim().replace(/\s+/g, ' ');
 
+  // Loose on purpose (any "Promoted…" tail, body included): the harvester
+  // records near-misses for calibration; content.js decides.
   let promotedLeaf = null;
   for (const el of li.querySelectorAll('p, span')) {
-    if (el.childElementCount === 0 && /^(Promoted|Sponsored)$/.test(el.textContent.trim())) {
-      promotedLeaf = el.textContent.trim();
+    const lead = [...el.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+    if (lead && /^(?:Promoted|Sponsored)\b/.test(lead.textContent.trim())) {
+      promotedLeaf = clean(el.textContent).slice(0, 80);
       break;
     }
   }

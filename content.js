@@ -4,7 +4,8 @@
 //
 // Signals, in order of durability:
 // 1. Promoted: [aria-label="View Sponsored Content"] — an accessibility
-//    disclosure — or a standalone "Promoted" label leaf.
+//    disclosure — or a "Promoted" label leading a p/span outside the body
+//    ("Promoted", "Promoted by Acme", "Promoted • Partnership with Acme").
 // 2. Spillover: the surfacing header ("Jane Doe commented") is always the
 //    first text in the post, after a hidden "Feed post" prefix and before the
 //    author block, so patterns are matched only against that head segment.
@@ -17,17 +18,6 @@
 // Badge-mode filters (slop) use a parallel channel: the verdict lands in
 // data-dp-slop instead of data-dp-reasons, and the generated CSS shows a
 // pill on the still-visible post rather than collapsing it.
-
-const PROMOTED_LABELS = new Set([
-  'Promoted',        // en
-  'Promocionado',    // es
-  'Sponsorisé',      // fr
-  'Anzeige',         // de
-  'Promosso',        // it
-  'Patrocinado',     // pt
-  'プロモーション',    // ja
-  '推广',             // zh-CN
-]);
 
 const POST_SELECTOR = [
   'div[role="listitem"][componentkey*="FeedType"]',
@@ -117,14 +107,26 @@ function buildPlaceholder(post) {
   return box;
 }
 
-function isPromoted(post) {
-  if (post.querySelector('[aria-label="View Sponsored Content"]')) return true;
-  for (const el of post.querySelectorAll('p, span')) {
-    if (el.childElementCount === 0 && PROMOTED_LABELS.has(el.textContent.trim())) {
-      return true;
-    }
+// The ad label is only the *leading* text of its element: thought-leader and
+// partnership ads put the advertiser in child nodes ("Promoted by <a>Acme</a>"),
+// so leaf-text matching goes blind on them. The match is anchored to the first
+// direct text node and never runs inside the body box, where organic prose
+// ("Promoted by popular demand…") could convict. The element's remaining text
+// names the advertiser — the placeholder's responsible party when present.
+function promotedLabel(post) {
+  if (post.querySelector('[aria-label="View Sponsored Content"]')) {
+    return { advertiser: null };
   }
-  return false;
+  for (const el of post.querySelectorAll('p, span')) {
+    const lead = [...el.childNodes].find(
+      (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim(),
+    );
+    if (!lead || !DP_PROMOTED_PATTERN.test(lead.textContent.trim())) continue;
+    if (el.closest(BODY_SELECTOR)) continue;
+    const advertiser = el.textContent.replace(lead.textContent, '').trim();
+    return { advertiser: advertiser || null };
+  }
+  return null;
 }
 
 // The surfacing header precedes the author block, whose "• 1st/2nd" degree
@@ -170,7 +172,11 @@ function isFigleafRepost(post) {
 function classify(post) {
   const reasons = [];
   let who = null;
-  if (isPromoted(post)) reasons.push('promoted');
+  const promo = promotedLabel(post);
+  if (promo) {
+    reasons.push('promoted');
+    who = promo.advertiser;
+  }
 
   const head = headSegment(post);
   for (const f of DP_FILTERS) {

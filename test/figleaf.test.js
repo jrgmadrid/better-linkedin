@@ -2,7 +2,7 @@
 // half of the detector (two-Visibility embed signature) is exercised by the
 // harvest replay, not here. Run with `node test/figleaf.test.js`.
 
-const { DP_FILTERS, isFigleafCommentary } = require('../filters.js');
+const { DP_FILTERS, DP_PROMOTED_PATTERN, isFigleafCommentary } = require('../filters.js');
 
 let failures = 0;
 function check(name, cond) {
@@ -46,6 +46,20 @@ check('follows: one actor', pat('follows').test('Jane Doe follows Acme Corp'));
 check('follows: two actors', pat('follows').test('Jane Doe and Joe Bloggs follow Acme Corp'));
 check('follows: verb runs into the next node', pat('follows').test('Jane Doe followsAcme Corp'));
 check('follows: "follower" never matches', !pat('follows').test('Acme Corp follower spotlight'));
+
+// ---- promoted labels: label + attribution tail, organic prefixes walk -----
+
+console.log('promoted labels:');
+check('bare label', DP_PROMOTED_PATTERN.test('Promoted'));
+check('thought-leader ad, advertiser in child node', DP_PROMOTED_PATTERN.test('Promoted by'));
+check('thought-leader ad, advertiser in same node', DP_PROMOTED_PATTERN.test('Promoted by Evertrace'));
+check('partnership ad', DP_PROMOTED_PATTERN.test('Promoted • Partnership with'));
+check('localized bare label', DP_PROMOTED_PATTERN.test('Promocionado'));
+check('localized partnership bullet', DP_PROMOTED_PATTERN.test('Sponsorisé • Partenariat'));
+check('celebration post stays organic', !DP_PROMOTED_PATTERN.test('Promoted to Staff Engineer!'));
+check('mid-sentence never matches', !DP_PROMOTED_PATTERN.test('We promoted this internally'));
+check('label as bare prefix word walks', !DP_PROMOTED_PATTERN.test('Promotedly bad take'));
+check('"by" needs its own boundary', !DP_PROMOTED_PATTERN.test('Promoted bypass tooling'));
 
 console.log(failures ? `\n${failures} failure(s)` : '\nall green');
 process.exit(failures ? 1 : 0);

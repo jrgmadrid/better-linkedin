@@ -46,6 +46,16 @@ const DP_FILTERS = [
 
 const DP_DEFAULTS = Object.fromEntries(DP_FILTERS.map((f) => [f.key, f.enabled]));
 
+// Ad labels (en/es/fr/de/it/pt/ja/zh). The label heads its element but no
+// longer exhausts it: thought-leader ads render "Promoted by <advertiser>"
+// and partnership ads "Promoted • Partnership with <brand>", so the label is
+// pinned to an attribution tail — " by" is the only attested localized-less
+// tail, the bullet is locale-neutral, bare labels end the string. Organic
+// prefixes ("Promoted to VP!") never match; the structural guards (leading
+// text node only, never inside the body box) live in content.js.
+const DP_PROMOTED_PATTERN =
+  /^(?:Promoted|Promocionado|Sponsorisé|Anzeige|Promosso|Patrocinado|プロモーション|推广)(?: by\b| •|$)/;
+
 // Fig-leaf commentary: a generic reaction pasted on a repost — agreement
 // without perspective. Anchored against normalized text so "This." convicts
 // and "This is why X fails" walks; the one non-anchored idiom ("couldn't
@@ -70,5 +80,5 @@ function isFigleafCommentary(text) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { DP_SECTIONS, DP_FILTERS, DP_DEFAULTS, isFigleafCommentary };
+  module.exports = { DP_SECTIONS, DP_FILTERS, DP_DEFAULTS, DP_PROMOTED_PATTERN, isFigleafCommentary };
 }
