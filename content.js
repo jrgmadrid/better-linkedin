@@ -66,8 +66,9 @@ function postAuthor(post) {
 const PLACEHOLDER_NOUNS = {
   promoted: 'ad', reactions: 'reaction', comments: 'comment', follows: 'follow',
   reposts: 'repost', figleaf: 'repost', suggested: 'suggested post',
+  spinmail: 'sponsored message',
 };
-const NOUN_SAYS_IT_ALL = new Set(['promoted', 'reactions', 'comments', 'follows', 'reposts', 'suggested']);
+const NOUN_SAYS_IT_ALL = new Set(['promoted', 'reactions', 'comments', 'follows', 'reposts', 'suggested', 'spinmail']);
 
 function placeholderText(post) {
   const keys = placeholderKeys(post);
@@ -416,8 +417,37 @@ function sweepWidgets() {
   }
 }
 
+// Sponsored InMail — LinkedIn's own code calls it spinmail. Two shapes, both
+// on /messaging/ (the docked chat overlay no longer exists on the 2026
+// stack): an inbox row wearing an exact-text "Sponsored" pill, and — since
+// LinkedIn auto-opens the newest thread — the opened thread's
+// msg-spinmail-* presenter, whose class name is itself the disclosure. Pill
+// text is en-only until other locales are attested. Both shapes ride the
+// placeholder channel: dpReasons drives the generated CSS, dpWho names the
+// sender. Rows are <li>, so the post sweep never collides with them.
+const SPINMAIL_PILL = 'Sponsored';
+
+function sweepSpinmail() {
+  for (const row of document.querySelectorAll('li.msg-conversation-listitem')) {
+    if (row.dataset.dpChecked) continue;
+    row.dataset.dpChecked = '1';
+    const pill = [...row.querySelectorAll('.msg-conversation-card__pill')]
+      .find((p) => p.childElementCount === 0 && p.textContent.trim() === SPINMAIL_PILL);
+    if (!pill) continue;
+    row.dataset.dpReasons = 'spinmail';
+    const sender = row.querySelector('.msg-conversation-card__participant-names');
+    if (sender) row.dataset.dpWho = sender.textContent.trim();
+  }
+  for (const pane of document.querySelectorAll('.msg-spinmail-thread-presenter')) {
+    if (pane.dataset.dpChecked) continue;
+    pane.dataset.dpChecked = '1';
+    pane.dataset.dpReasons = 'spinmail';
+  }
+}
+
 function sweep() {
   sweepWidgets();
+  sweepSpinmail();
   for (const post of document.querySelectorAll(POST_SELECTOR)) {
     if (post.dataset.dpChecked) continue;
     // Hydration-and-posthood gate: every fully-rendered post carries an

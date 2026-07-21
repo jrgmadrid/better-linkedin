@@ -16,6 +16,7 @@ const DP_SECTIONS = [
 // leaves the post visible and pins a verdict pill on it instead.
 const DP_FILTERS = [
   { key: 'promoted',  label: 'Promoted posts',      hint: null,                            reasonLabel: 'Promoted',           pattern: null,                                                         enabled: true,  section: 'injected' },
+  { key: 'spinmail',  label: 'Sponsored messages',  hint: 'Sponsored InMail in the inbox', reasonLabel: 'Sponsored message',  pattern: null,                                                         enabled: true,  section: 'injected' },
   { key: 'suggested', label: 'Suggested posts',     hint: '"Recommended for you"',         reasonLabel: 'Suggested post',     pattern: /suggested for you|recommended for you/i,                    enabled: false, section: 'injected' },
   // Rail widgets, not feed posts: hidden outright by sweepWidgets(), no placeholder.
   { key: 'railwidgets', label: 'News & games',      hint: '"LinkedIn News", "Today’s puzzles"', reasonLabel: 'News & games', pattern: null,                                                 enabled: false, section: 'injected' },

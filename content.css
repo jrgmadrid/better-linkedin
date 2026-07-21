@@ -62,6 +62,26 @@ html[data-dp-hide~="railwidgets"] [data-dp-widget] {
   background: rgba(10, 102, 194, 0.08);
 }
 
+/* Messaging: the placeholder stands in for a three-line inbox row, where the
+   feed card's padding reads oversized. The row's 92px comes from a
+   min-height, so percentage heights on the placeholder never resolve —
+   align-content centers it in the block axis instead, and only acts while
+   there's free space, so the revealed strip-above-card state is untouched.
+   The spinmail pane keeps its full column height; auto margins center the
+   placeholder in the void. */
+li.msg-conversation-listitem .dp-placeholder {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+li.msg-conversation-listitem[data-dp-reasons] {
+  align-content: center;
+}
+
+.msg-spinmail-thread-presenter:not([data-dp-revealed]) > .dp-placeholder {
+  margin: auto 0;
+}
+
 [data-dp-revealed] > .dp-placeholder {
   padding: 6px 20px;
   font-size: 12px;
